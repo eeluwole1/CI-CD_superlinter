@@ -1,18 +1,19 @@
-name: Lint commit
+name: Lint commit and code
 
 on:
   push:
   pull_request:
   merge_group:
 
-# Don't grant any access by default
 permissions: {}
 
 jobs:
   commitlint:
+    name: Ensure PR has one commit
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,16 +22,37 @@ jobs:
       - name: Check if the pull request contains a single commit
         if: github.event_name == 'pull_request'
         run: |
-          commit_count=${{ github.event.pull_request.commits }}
+          commit_count="${{ github.event.pull_request.commits }}"
 
-          if [ -z ${commit_count} ]; then
+          if [ -z "$commit_count" ]; then
             echo "[ERROR] commit_count is empty"
             exit 1
           fi
 
-          if [[ ${commit_count} -ne 1 ]]; then
-            echo "[ERROR] This pull request contains ${commit_count} commits. Squash these commits into a single commit."
+          if [ "$commit_count" -ne 1 ]; then
+            echo "[ERROR] This pull request contains $commit_count commits. Please squash to a single commit."
             exit 1
           else
-            echo "This pull request contains ${commit_count} commit."
+            echo "
           fi
+
+  superlinter:
+    name: Run Super Linter
+    runs-on: ubuntu-latest
+    needs: commitlint # Only run if commitlint succeeds
+    permissions:
+      contents: read
+      statuses: write
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Super-Linter
+        uses: super-linter/super-linter@v7.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_ALL_CODEBASE: true # Optional: Set to false to only lint changed files
